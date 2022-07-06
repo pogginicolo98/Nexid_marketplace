@@ -1,0 +1,90 @@
+<!-- Homepage -->
+{% extends 'base.html' %}
+
+{% block script %}
+<script>
+  function purchase(token_id) {
+    const btn = document.getElementById("purchase-" + token_id);
+
+    let purchaseSocket = new ReconnectingWebSocket(
+      'ws://'
+      + window.location.host
+      + '/ws/marketplace/'
+      + token_id
+      + '/purchase/'
+    );
+
+    let statusSocket = new ReconnectingWebSocket(
+      'ws://'
+      + window.location.host
+      + '/ws/marketplace/'
+      + token_id
+      + '/status/'
+    );
+
+    purchaseSocket.onopen = () => {
+      purchaseSocket.send();
+    };
+
+    purchaseSocket.onmessage = e => {
+      let data = JSON.parse(e.data);
+      if (data.error) {
+        console.log(data.error);
+        btn.textContent = 'Error';
+        purchaseSocket.close();
+      } else {
+        purchaseSocket.close();
+      }
+    };
+
+    statusSocket.onopen = () => {
+      console.log("status open");
+      statusInterval = setInterval(() => {statusSocket.send(); console.log("status sending");}, 10000);
+    };
+
+    statusSocket.onmessage = e => {
+      let data = JSON.parse(e.data);
+      if (data.response == "NFT not available.") {
+        console.log(data.response);
+        btn.textContent = 'Error';
+        statusSocket.close();
+        clearInterval(statusInterval);
+      } else {
+        console.log("status received");
+        console.log(data.response);
+        btn.textContent = data.response;
+        if (data.response == "Purchased") {
+          statusSocket.close();
+          clearInterval(statusInterval);
+        }
+      }
+    };
+  };
+</script>
+{% endblock %}
+
+{% block navbar %}
+  {% with nexid_token_balance=nexid_token_balance nexid_nft_balance=nexid_nft_balance %}
+    {{ block.super }}
+  {% endwith %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="row row-cols-4">
+    {% for nft in nfts %}
+    <div class="col p-3">
+      <div class="card" style="width: 100%;">
+      <div class="card-body">
+        <h5 class="card-title">Token ID: {{ nft.token_id }}</h5>
+        <p class="mb-0 text-muted">Token URI:</p>
+        <p class="card-text">{{ nft.token_uri }}</p>
+        <p class="card-text mt-2">Price: {{ nexid_nft_price }} NEX</p>
+        <button type="button" class="btn btn-primary" id="purchase-{{ nft.token_id }}" onclick="purchase({{ nft.token_id }});">Purchase</button>
+      </div>
+    </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
